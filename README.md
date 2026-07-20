@@ -229,7 +229,7 @@ curl 'localhost:9200/_cat/indices/nginx-filebeat-*?v'
 
 ### Скриншот
 
-![Логи Nginx, отправленные через Filebeat](screenshots/task4-filebeat-nginx.png)
+![Логи Nginx, отправленные через Filebeat](task4-filebeat-nginx.png)
 
 ---
 
