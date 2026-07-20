@@ -58,7 +58,7 @@ curl -X GET 'localhost:9200/_cluster/health?pretty'
 
 ### Скриншот
 
-![Состояние кластера Elasticsearch](screenshots/task1-elasticsearch.png)
+![Состояние кластера Elasticsearch](task1-elasticsearch.png)
 
 ---
 
