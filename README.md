@@ -110,7 +110,7 @@ GET /_cluster/health?pretty
 
 ### Скриншот
 
-![Запрос в Kibana Dev Tools](screenshots/task2-kibana.png)
+![Запрос в Kibana Dev Tools](task2-kibana.png)
 
 ---
 
