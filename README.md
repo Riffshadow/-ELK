@@ -1,175 +1,246 @@
+
+README-corrected.md
+
+
 # Домашнее задание к занятию «ELK»
 
 **Выполнил:** Чернобровкин Иван
 
-Решение выполнено в Docker Compose на базе Elasticsearch, Kibana, Logstash и Filebeat версии 7.17.9. Для создания access-логов используется Nginx.
+Для выполнения работы использован Docker Compose. В состав стенда входят Elasticsearch, Kibana, Logstash, Filebeat и Nginx версии, указанные в конфигурационных файлах репозитория.
 
-## Подготовка
-
-Для запуска желательно выделить виртуальной машине не менее 4 ГБ оперативной памяти и 10 ГБ свободного места.
-
-```bash
-git clone https://github.com/Riffshadow/-ELK.git
-cd ./-ELK
-sudo sysctl -w vm.max_map_count=262144
-docker compose version
-```
-
-Чтобы параметр `vm.max_map_count` сохранялся после перезагрузки:
-
-```bash
-echo 'vm.max_map_count=262144' | sudo tee /etc/sysctl.d/99-elasticsearch.conf
-sudo sysctl --system
-```
+---
 
 ## Задание 1. Elasticsearch
 
-Запуск Elasticsearch:
+### Условие
 
-```bash
-docker compose up -d elasticsearch
-docker compose ps
-```
+Установите и запустите Elasticsearch, после чего измените параметр `cluster_name` на случайное значение.
 
-Проверка состояния кластера:
+В качестве результата приложите скриншот выполнения команды:
 
 ```bash
 curl -X GET 'localhost:9200/_cluster/health?pretty'
 ```
 
-В результате отображается нестандартное имя кластера:
+На скриншоте должно быть видно нестандартное имя кластера.
 
-```text
-"cluster_name" : "riffshadow-elk-7421"
+### Решение
+
+В файле `docker-compose.yml` для Elasticsearch задано нестандартное имя кластера:
+
+```yaml
+environment:
+  - cluster.name=riffshadow-elk-7421
+  - discovery.type=single-node
+  - xpack.security.enabled=false
+  - ES_JAVA_OPTS=-Xms512m -Xmx512m
 ```
 
-Скриншот результата:
-
-![Состояние кластера Elasticsearch](screenshots/task-1-elasticsearch.png)
-
-## Задание 2. Kibana
-
-Запуск Kibana:
+Elasticsearch запущен командой:
 
 ```bash
-docker compose up -d kibana
+docker compose up -d elasticsearch
+```
+
+Состояние контейнера проверено командой:
+
+```bash
 docker compose ps
 ```
 
-После запуска интерфейс доступен по адресу:
+Состояние кластера проверено командой:
+
+```bash
+curl -X GET 'localhost:9200/_cluster/health?pretty'
+```
+
+В результате Elasticsearch вернул нестандартное имя кластера `riffshadow-elk-7421` и состояние `green`.
+
+### Скриншот
+
+![Состояние кластера Elasticsearch](screenshots/task1-elasticsearch.png)
+
+---
+
+## Задание 2. Kibana
+
+### Условие
+
+Установите и запустите Kibana.
+
+В качестве результата приложите скриншот интерфейса Kibana на странице:
 
 ```text
 http://<IP-адрес-сервера>:5601/app/dev_tools#/console
 ```
 
-IP-адрес виртуальной машины можно посмотреть командой:
-
-```bash
-hostname -I
-```
-
-В Kibana Dev Tools выполнен запрос:
+На странице должен быть выполнен запрос:
 
 ```http
 GET /_cluster/health?pretty
 ```
 
-Скриншот результата:
+### Решение
 
-![Запрос в Kibana Dev Tools](screenshots/task-2-kibana.png)
+Kibana запущена командой:
+
+```bash
+docker compose up -d kibana
+```
+
+Готовность Kibana проверена по журналу контейнера:
+
+```bash
+docker compose logs --tail=20 kibana
+```
+
+После появления сообщения `Kibana is now available` в браузере открыта страница:
+
+```text
+http://localhost:5601/app/dev_tools#/console
+```
+
+В консоли Dev Tools выполнен запрос:
+
+```http
+GET /_cluster/health?pretty
+```
+
+Получен ответ `200 OK`, в котором отображаются имя кластера `riffshadow-elk-7421` и состояние `green`.
+
+### Скриншот
+
+![Запрос в Kibana Dev Tools](screenshots/task2-kibana.png)
+
+---
 
 ## Задание 3. Logstash
 
-Запуск Nginx и Logstash:
+### Условие
 
-```bash
-docker compose up -d nginx
-docker compose --profile logstash up -d logstash
-docker compose ps
+Установите и запустите Logstash и Nginx. С помощью Logstash отправьте журнал доступа Nginx в Elasticsearch.
+
+В качестве результата приложите скриншот интерфейса Kibana, на котором отображаются журналы Nginx.
+
+### Решение
+
+Для Nginx настроено сохранение журнала доступа в файл `/var/log/nginx/access.log`. Этот файл подключён к контейнеру Logstash через общий Docker volume.
+
+Конвейер Logstash описан в файле:
+
+```text
+logstash/pipeline/nginx.conf
 ```
 
-Создание тестовых обращений к Nginx:
+Logstash читает `access.log`, разбирает записи фильтром `grok` и отправляет их в индекс:
 
-```bash
-for i in $(seq 1 20); do curl -s "http://localhost:8080/?request=$i" > /dev/null; done
+```text
+nginx-logstash-%{+YYYY.MM.dd}
 ```
 
-Проверка Logstash и созданного индекса:
+Nginx и Logstash запущены командами:
 
 ```bash
-docker compose logs --tail=50 logstash
-curl -s 'localhost:9200/_cat/indices/nginx-logstash-*?v'
+docker compose --profile logstash up -d nginx logstash
+docker compose --profile logstash ps
 ```
 
-В Kibana создан шаблон индекса `nginx-logstash-*` с полем времени `@timestamp`. В разделе **Discover** выбран этот шаблон. Поле `delivery` имеет значение `logstash`.
+Поскольку порт `8080` на виртуальной машине занят HAProxy, для Nginx используется порт `8081`.
 
-Скриншот логов Nginx, доставленных через Logstash:
+Тестовое обращение к Nginx выполнено командой:
 
-![Логи Nginx из Logstash](screenshots/task-3-logstash.png)
+```bash
+curl http://localhost:8081/
+```
+
+Создание индекса проверено командой:
+
+```bash
+curl 'localhost:9200/_cat/indices/nginx-logstash-*?v'
+```
+
+В Kibana создан шаблон индекса `nginx-logstash-*` с полем времени `@timestamp`. В разделе **Discover** отображается журнал обращения к Nginx с кодом ответа `200`.
+
+### Скриншот
+
+![Логи Nginx, отправленные через Logstash](screenshots/task3-logstash-nginx.png)
+
+---
 
 ## Задание 4. Filebeat
 
-Поставка логов через Logstash остановлена, после чего запущен Filebeat:
+### Условие
+
+Установите и запустите Filebeat. Переключите доставку журналов Nginx с Logstash на Filebeat.
+
+В качестве результата приложите скриншот интерфейса Kibana, на котором отображаются журналы Nginx, отправленные через Filebeat.
+
+### Решение
+
+Доставка журналов через Logstash остановлена командой:
 
 ```bash
-docker compose stop logstash
+docker compose --profile logstash stop logstash
+```
+
+Filebeat настроен в файле:
+
+```text
+filebeat/filebeat.yml
+```
+
+Он читает файл `/var/log/nginx/access.log` и отправляет записи непосредственно в Elasticsearch в индекс:
+
+```text
+nginx-filebeat-%{+yyyy.MM.dd}
+```
+
+Filebeat запущен командой:
+
+```bash
 docker compose --profile filebeat up -d filebeat
 ```
 
-После переключения созданы новые обращения к Nginx:
+Состояние контейнеров проверено командой:
 
 ```bash
-for i in $(seq 21 40); do curl -s "http://localhost:8080/?request=$i" > /dev/null; done
+docker compose --profile filebeat ps
 ```
 
-Проверка Filebeat и созданного индекса:
+Для создания новой записи в журнале выполнен запрос:
 
 ```bash
-docker compose logs --tail=50 filebeat
-curl -s 'localhost:9200/_cat/indices/nginx-filebeat-*?v'
+curl http://localhost:8081/filebeat-test
 ```
 
-В Kibana создан шаблон индекса `nginx-filebeat-*` с полем времени `@timestamp`. В разделе **Discover** выбран этот шаблон. Поле `delivery` имеет значение `filebeat`.
+Ответ `404 Not Found` является ожидаемым: обращение к несуществующей странице было записано в журнал Nginx.
 
-Скриншот логов Nginx, доставленных через Filebeat:
-
-![Логи Nginx из Filebeat](screenshots/task-4-filebeat.png)
-
-## Проверка и диагностика
-
-Состояние контейнеров:
+Создание индекса Filebeat проверено командой:
 
 ```bash
-docker compose ps
+curl 'localhost:9200/_cat/indices/nginx-filebeat-*?v'
 ```
 
-Последние сообщения нужного контейнера:
+В Kibana создан шаблон индекса `nginx-filebeat-*` с полем времени `@timestamp`. В разделе **Discover** отображается запись со следующими признаками:
 
-```bash
-docker compose logs --tail=100 elasticsearch
-docker compose logs --tail=100 kibana
-docker compose logs --tail=100 logstash
-docker compose logs --tail=100 filebeat
-```
+- `delivery_method: filebeat`;
+- запрос `GET /filebeat-test`;
+- индекс `nginx-filebeat-2026.07.20`.
 
-Полная остановка стенда без удаления данных:
+### Скриншот
 
-```bash
-docker compose --profile logstash --profile filebeat down
-```
+![Логи Nginx, отправленные через Filebeat](screenshots/task4-filebeat-nginx.png)
 
-> Команда `docker compose down -v` дополнительно удалит все тестовые индексы и служебные данные из Docker volumes.
+---
 
-## Отправка решения
+## Задание 5*. Данные о доставке
 
-После добавления скриншотов в каталог `screenshots`:
+### Условие
 
-```bash
-git add .
-git commit -m "Выполнено домашнее задание ELK"
-git push origin main
-```
+Настройте доставку журнала в Elasticsearch через Logstash и Filebeat для любого другого сервиса, кроме Nginx. Журнал должен записываться в файл, а Logstash должен корректно разобрать его и распределить данные по полям.
 
-Ссылка на решение:
+В качестве результата приложите скриншот интерфейса Kibana, на котором отображается журнал выбранного приложения.
 
-<https://github.com/Riffshadow/-ELK/blob/main/README.md>
+### Решение
+
+Дополнительное задание не выполнялось.
