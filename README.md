@@ -163,7 +163,7 @@ curl 'localhost:9200/_cat/indices/nginx-logstash-*?v'
 
 ### Скриншот
 
-![Логи Nginx, отправленные через Logstash](screenshots/task3-logstash-nginx.png)
+![Логи Nginx, отправленные через Logstash](task3-logstash-nginx.png)
 
 ---
 
